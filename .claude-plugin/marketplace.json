@@ -1,0 +1,5 @@
+{
+  "name": "auto-skills",
+  "owner": { "name": "banalsur-blip" },
+  "plugins": [{ "name": "auto-skills", "source": "./" }]
+}
