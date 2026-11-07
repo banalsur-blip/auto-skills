@@ -81,6 +81,24 @@
   .btn{display:block;width:100%;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:11px;font-size:15px;margin-top:8px;cursor:pointer}
   .btn.main{background:var(--accent);border-color:var(--accent);color:#fff}
   .install{background:var(--blue-soft)}
+  .score{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+  .score .big{font-size:30px;font-weight:700;color:var(--accent);line-height:1}
+  .score small{color:var(--muted);font-size:13px}
+  .lvl{font-weight:600}
+  .bar{height:10px;border-radius:6px;background:var(--line);overflow:hidden;margin:10px 0 4px}
+  .bar i{display:block;height:100%;background:var(--green);border-radius:6px;transition:width .3s}
+  .chip .pts{margin-left:auto;font-size:12px;color:var(--muted)}
+  .chip.on .pts{color:var(--green);font-weight:600}
+  .times{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .times label{font-size:14px;color:var(--muted)}
+  .times input{width:100%;margin-top:4px;border:1.5px solid var(--line);border-radius:12px;padding:9px;font:inherit;background:var(--card);color:var(--ink)}
+  .dur{margin:10px 0 2px;font-size:15px}
+  .task{display:flex;align-items:center;gap:10px;border:1.5px dashed var(--accent);border-radius:12px;padding:12px;cursor:pointer;user-select:none}
+  .task.on{border-style:solid;border-color:var(--green);background:var(--green-soft)}
+  .task .box{width:24px;height:24px;border-radius:7px;border:2px solid var(--accent);display:grid;place-items:center;color:#fff;flex:none}
+  .task.on .box{background:var(--green);border-color:var(--green)}
+  .task .pts{margin-left:auto;font-weight:700;color:var(--accent);white-space:nowrap}
+  .task.on .pts{color:var(--green)}
 </style>
 </head>
 <body>
@@ -105,6 +123,18 @@
       </div>
     </div>
     <div class="card">
+      <div class="score">
+        <div><small>Бали за день</small><div class="big" id="dpts">0</div></div>
+        <div style="text-align:right"><small>Усього</small><div class="lvl" id="tpts"></div></div>
+      </div>
+      <div class="bar"><i id="lbar"></i></div>
+      <small class="muted" id="lnext"></small>
+    </div>
+    <div class="card">
+      <h2>⭐ Завдання дня</h2>
+      <div class="task" id="task"></div>
+    </div>
+    <div class="card">
       <h2>🍽 Їжа</h2>
       <div class="chips" data-group="food"></div>
     </div>
@@ -113,7 +143,13 @@
       <div class="chips" data-group="move"></div>
     </div>
     <div class="card">
-      <h2>😴 Як спала</h2>
+      <h2>😴 Сон цієї ночі</h2>
+      <div class="times">
+        <label>Заснула о<input type="time" id="bed"></label>
+        <label>Прокинулась о<input type="time" id="wake"></label>
+      </div>
+      <div class="dur" id="dur"></div>
+      <h3>Як спала</h3>
       <div class="seg" data-seg="sleep"></div>
       <h3>⚡ Енергія за день</h3>
       <div class="seg" data-seg="energy"></div>
@@ -348,6 +384,61 @@ function persist(){
 function flash(t){ const el = document.getElementById("save"); el.textContent = t; clearTimeout(saver); saver = setTimeout(()=>el.textContent="", 2500); }
 
 const day = s => state.days[s] || (state.days[s] = {});
+
+// Найбільше балів дає їжа: трекер має заохочувати їсти регулярно, а не навпаки
+const PTS = {breakfast:10, lunch:10, dinner:10, snack:5, walk:10, workout:10, stretch:5, rest:5, water:5, period:0};
+const TASK_PTS = 15, FULL_BONUS = 10, SLEEP_LOG = 5, SLEEP_GOOD = 10, NOTE_PTS = 3, GOOD_SLEEP_MIN = 8*60;
+const TASKS = [
+  "Поснідай разом із кимось із сім'ї",
+  "Погуляй удень, поки світло",
+  "Спробуй нову вправу з вкладки «Вправи»",
+  "Приготуй собі щось смачне сама",
+  "Лягай спати без телефона в руках",
+  "Подзвони або напиши подрузі",
+  "Додай до обіду овочі або квашену капусту",
+  "Зроби розтяжку перед сном",
+  "З'їж перекус між обідом і вечерею",
+  "Запиши в нотатку одну річ, якою пишаєшся",
+  "Пограй або погуляй із твариною чи друзями",
+  "Спробуй страву, яку давно не їла",
+  "Провітри кімнату і зроби розминку",
+  "Розкажи дорослому, як ти почуваєшся останнім часом"
+];
+const LEVELS = [[0,"🌰 Насінинка"],[250,"🌱 Паросток"],[700,"🌿 Листочок"],[1400,"🌷 Бутон"],[2400,"🌸 Квітка"],[3800,"🌳 Деревце"],[5500,"☀️ Весна"]];
+const taskFor = s => TASKS[Math.round((toD(s) - toD(START)) / 864e5) % TASKS.length];
+function sleepMin(d){
+  if(!d || !d.bed || !d.wake) return null;
+  const [bh,bm] = d.bed.split(":").map(Number), [wh,wm] = d.wake.split(":").map(Number);
+  let m = (wh*60+wm) - (bh*60+bm); if(m <= 0) m += 1440;
+  return m;
+}
+const fmtMin = m => Math.floor(m/60) + " год " + (m%60 ? (m%60) + " хв" : "");
+function points(d){
+  if(!d) return 0;
+  let p = 0;
+  for(const k in PTS) if(d[k]) p += PTS[k];
+  if(d.task) p += TASK_PTS;
+  if(d.breakfast && d.lunch && d.dinner && (d.walk || d.workout || d.stretch || d.rest)) p += FULL_BONUS;
+  const sm = sleepMin(d);
+  if(sm !== null){ p += SLEEP_LOG; if(sm >= GOOD_SLEEP_MIN) p += SLEEP_GOOD; }
+  if(d.note && d.note.trim()) p += NOTE_PTS;
+  return p;
+}
+const totalPts = () => Object.keys(state.days).reduce((a,s) => a + points(state.days[s]), 0);
+function renderScore(){
+  document.getElementById("dpts").textContent = points(state.days[cur]);
+  const t = totalPts();
+  let i = 0; while(i+1 < LEVELS.length && t >= LEVELS[i+1][0]) i++;
+  document.getElementById("tpts").textContent = t + " · " + LEVELS[i][1];
+  if(i+1 < LEVELS.length){
+    const a = LEVELS[i][0], b = LEVELS[i+1][0];
+    document.getElementById("lbar").style.width = Math.round((t-a)/(b-a)*100) + "%";
+    document.getElementById("lnext").textContent = "До рівня " + LEVELS[i+1][1] + " лишилось " + (b-t) + " балів";
+  } else {
+    document.getElementById("lbar").style.width = "100%";
+    document.getElementById("lnext").textContent = "Найвищий рівень! Ти молодець.";
+  }
+}
 function dayScore(d){
   if(!d) return 0;
   const meals = ["breakfast","lunch","dinner","snack"].filter(k=>d[k]).length;
@@ -371,7 +462,7 @@ function renderDay(){
     GROUPS[box.dataset.group].forEach(([k,label]) => {
       const c = document.createElement("div");
       c.className = "chip" + (d[k] ? " on" : "");
-      c.innerHTML = '<div class="box">' + (d[k] ? "✓" : "") + '</div><div>' + label + '</div>';
+      c.innerHTML = '<div class="box">' + (d[k] ? "✓" : "") + '</div><div>' + label + '</div>' + (PTS[k] ? '<span class="pts">+' + PTS[k] + '</span>' : '');
       c.onclick = () => { const dd = day(cur); dd[k] = !dd[k]; persist(); renderDay(); };
       box.appendChild(c);
     });
@@ -387,10 +478,21 @@ function renderDay(){
   });
   const note = document.getElementById("note");
   if(document.activeElement !== note) note.value = d.note || "";
+  const t = document.getElementById("task");
+  t.className = "task" + (d.task ? " on" : "");
+  t.innerHTML = '<div class="box">' + (d.task ? "✓" : "") + '</div><div>' + taskFor(cur) + '</div><span class="pts">+' + TASK_PTS + '</span>';
+  t.onclick = () => { const dd = day(cur); dd.task = !dd.task; persist(); renderDay(); };
+  const bed = document.getElementById("bed"), wake = document.getElementById("wake");
+  if(document.activeElement !== bed) bed.value = d.bed || "";
+  if(document.activeElement !== wake) wake.value = d.wake || "";
+  const sm = sleepMin(d);
+  document.getElementById("dur").innerHTML = sm === null ? '<span class="muted">Вкажи обидва часи, і я порахую, скільки ти спала. За запис сну +' + SLEEP_LOG + ', за 8 годин і більше ще +' + SLEEP_GOOD + '.</span>'
+    : "Спала <b>" + fmtMin(sm) + "</b>" + (sm >= GOOD_SLEEP_MIN ? " 👍" : '<br><span class="muted">Підліткам зазвичай потрібно 8-10 годин сну.</span>');
+  renderScore();
 }
 
 function summarize(dates){
-  let regular=0, walks=0, workouts=0, goodSleep=0, energy=0, calm=0, marked=0;
+  let regular=0, walks=0, workouts=0, goodSleep=0, energy=0, calm=0, marked=0, pts=0, tasks=0, sleepSum=0, sleepN=0;
   dates.forEach(s => {
     const d = state.days[s]; if(!d) return;
     const meals = ["breakfast","lunch","dinner","snack"].filter(k=>d[k]).length;
@@ -401,12 +503,17 @@ function summarize(dates){
     if(d.sleep === "good") goodSleep++;
     if(d.energy === "high" || d.energy === "mid") energy++;
     if(d.foodmood === "calm") calm++;
+    pts += points(d); if(d.task) tasks++;
+    const sm = sleepMin(d); if(sm !== null){ sleepSum += sm; sleepN++; }
   });
-  return {regular, walks, workouts, goodSleep, energy, calm, marked};
+  return {regular, walks, workouts, goodSleep, energy, calm, marked, pts, tasks, sleepAvg: sleepN ? Math.round(sleepSum/sleepN) : null};
 }
 function statsHTML(s){
   return [
+    [s.pts,"балів"],
+    [s.sleepAvg === null ? "немає" : fmtMin(s.sleepAvg),"в середньому сну за ніч"],
     [s.regular,"днів з усіма трьома прийомами їжі"],
+    [s.tasks,"виконаних завдань дня"],
     [s.walks,"прогулянок"],
     [s.workouts,"тренувань удома"],
     [s.goodSleep,"ночей з добрим сном"],
@@ -430,7 +537,7 @@ function renderWeeks(){
       const lv = outR ? 0 : dayScore(state.days[x]);
       return '<div class="dot '+(outR?"out":"l"+lv)+'">'+toD(x).getUTCDate()+'</div>';
     }).join("");
-    out.push('<div class="week"><div class="t"><b>Тиждень '+n+'</b><span>'+fmt(dates[0])+' - '+fmt(dates[6])+'</span></div><div class="dots">'+dots+'</div><div class="wl">Регулярна їжа: '+s.regular+' · прогулянки: '+s.walks+' · вправи: '+s.workouts+'</div></div>');
+    out.push('<div class="week"><div class="t"><b>Тиждень '+n+'</b><span>'+fmt(dates[0])+' - '+fmt(dates[6])+'</span></div><div class="dots">'+dots+'</div><div class="wl">⭐ '+s.pts+' балів · регулярна їжа: '+s.regular+' · прогулянки: '+s.walks+' · вправи: '+s.workouts+'</div></div>');
     w = addDays(w,7); n++;
   }
   document.getElementById("weeks").innerHTML = out.reverse().join("");
@@ -483,7 +590,8 @@ function show(v){
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.v));
 document.getElementById("prev").onclick = () => { cur = clamp(addDays(cur,-1)); renderDay(); };
 document.getElementById("next").onclick = () => { cur = clamp(addDays(cur,1)); renderDay(); };
-document.getElementById("note").oninput = e => { day(cur).note = e.target.value; persist(); };
+document.getElementById("note").oninput = e => { day(cur).note = e.target.value; persist(); renderScore(); };
+["bed","wake"].forEach(id => document.getElementById(id).onchange = e => { day(cur)[id] = e.target.value || null; persist(); renderDay(); });
 
 lsLoad(); renderDay();
 
