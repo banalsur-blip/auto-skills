@@ -99,6 +99,14 @@
   .task.on .box{background:var(--green);border-color:var(--green)}
   .task .pts{margin-left:auto;font-weight:700;color:var(--accent);white-space:nowrap}
   .task.on .pts{color:var(--green)}
+  .meal{margin:8px 0}
+  .meal label{font-size:14px;color:var(--muted);display:block;margin-bottom:4px}
+  .meal input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px;font:inherit;background:var(--card);color:var(--ink)}
+  .wheelbox{position:relative;width:260px;height:260px;margin:12px auto 6px}
+  .wheelbox svg{width:100%;height:100%;transition:transform 4.5s cubic-bezier(.17,.67,.2,1)}
+  .pointer{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:24px solid var(--ink);z-index:2}
+  .prize{text-align:center;font-size:17px;margin-top:8px}
+  .btn:disabled{opacity:.45}
 </style>
 </head>
 <body>
@@ -129,6 +137,9 @@
       </div>
       <div class="bar"><i id="lbar"></i></div>
       <small class="muted" id="lnext"></small>
+      <div style="margin-top:12px"><small>Ціль тижня</small></div>
+      <div class="bar"><i id="wbar" style="background:var(--accent)"></i></div>
+      <small class="muted" id="wtext"></small>
     </div>
     <div class="card">
       <h2>⭐ Завдання дня</h2>
@@ -137,6 +148,11 @@
     <div class="card">
       <h2>🍽 Їжа</h2>
       <div class="chips" data-group="food"></div>
+    </div>
+    <div class="card">
+      <h2>🥄 Що я їла</h2>
+      <p class="muted" style="margin:0">Просто назви страви, без грамів і калорій. Коли щось впишеш, прийом їжі відмітиться сам.</p>
+      <div id="meals"></div>
     </div>
     <div class="card">
       <h2>🚶 Рух</h2>
@@ -166,6 +182,13 @@
 
   <!-- ТИЖНІ -->
   <section id="v-weeks" class="hidden">
+    <div class="card">
+      <h2>🎡 Колесо призів</h2>
+      <div id="goalinfo"></div>
+      <div class="wheelbox"><div class="pointer"></div><svg id="wheel" viewBox="-100 -100 200 200"></svg></div>
+      <div class="prize" id="prize"></div>
+      <button class="btn main" id="spin">Крутити колесо</button>
+    </div>
     <div class="card">
       <h2>Цей тиждень</h2>
       <div class="stats" id="wstats"></div>
@@ -358,13 +381,13 @@ const MQ = [
 ];
 const MLIST = [["2026-11","Листопад"],["2026-12","Грудень"],["2027-01","Січень"],["2027-02","Лютий"]];
 
-let state = { days:{}, months:{} };
+let state = { days:{}, months:{}, weeks:{} };
 let cur = clamp(todayS);
 let curMonth = (MLIST.find(m => todayS.startsWith(m[0])) || MLIST[0])[0];
 let saver = null, docRef = null;
 
 // Основне сховище: особистий розділ у db (бачить лише сама людина); localStorage тільки як запасний варіант
-function lsLoad(){ try{ const s = localStorage.getItem("habit-tracker"); if(s) state = Object.assign({days:{},months:{}}, JSON.parse(s)); }catch(e){} }
+function lsLoad(){ try{ const s = localStorage.getItem("habit-tracker"); if(s) state = Object.assign({days:{},months:{},weeks:{}}, JSON.parse(s)); }catch(e){} }
 function lsSave(){ try{ localStorage.setItem("habit-tracker", JSON.stringify(state)); }catch(e){} }
 let pending = null, writing = false;
 function persist(){
@@ -424,9 +447,21 @@ function points(d){
   if(d.note && d.note.trim()) p += NOTE_PTS;
   return p;
 }
+// Ціль тижня досяжна просто регулярним харчуванням; невиконання нічим не карається
+const WEEK_GOAL = 350;
+const PRIZES = [
+  ["🎬","Вечір улюбленого фільму"],["🛁","Тепла ванна або довгий душ з музикою"],["🍰","Улюблений десерт"],
+  ["🎧","Нова пісня в плейлист і танці в кімнаті"],["😴","Ранок без будильника у вихідний"],["👯","Прогулянка або дзвінок подрузі"],
+  ["🍳","Приготувати улюблену страву разом з кимось"],["🎁","Дрібничка для себе"]
+];
+const weekDates = ws => Array.from({length:7}, (_,i) => addDays(ws,i));
+const weekPts = ws => weekDates(ws).reduce((a,s) => a + points(state.days[s]), 0);
 const totalPts = () => Object.keys(state.days).reduce((a,s) => a + points(state.days[s]), 0);
 function renderScore(){
   document.getElementById("dpts").textContent = points(state.days[cur]);
+  const wp = weekPts(weekStart(cur));
+  document.getElementById("wbar").style.width = Math.min(100, Math.round(wp/WEEK_GOAL*100)) + "%";
+  document.getElementById("wtext").textContent = wp >= WEEK_GOAL ? wp + " з " + WEEK_GOAL + ". Ціль виконана, крути колесо у вкладці «Тижні» 🎡" : wp + " з " + WEEK_GOAL + " балів";
   const t = totalPts();
   let i = 0; while(i+1 < LEVELS.length && t >= LEVELS[i+1][0]) i++;
   document.getElementById("tpts").textContent = t + " · " + LEVELS[i][1];
@@ -451,12 +486,8 @@ function dayScore(d){
 }
 const fmt = s => { const d = toD(s); return d.getUTCDate() + " " + MONTHS[d.getUTCMonth()]; };
 
-function renderDay(){
-  const d = day(cur), dt = toD(cur);
-  document.getElementById("dname").textContent = (cur === todayS ? "Сьогодні, " : "") + DAYS[dt.getUTCDay()].toLowerCase();
-  document.getElementById("ddate").textContent = fmt(cur);
-  document.getElementById("prev").disabled = cur <= START;
-  document.getElementById("next").disabled = cur >= END;
+function renderChipsOnly(){
+  const d = day(cur);
   document.querySelectorAll("[data-group]").forEach(box => {
     box.innerHTML = "";
     GROUPS[box.dataset.group].forEach(([k,label]) => {
@@ -467,6 +498,15 @@ function renderDay(){
       box.appendChild(c);
     });
   });
+  if(document.getElementById("dpts")) renderScore();
+}
+function renderDay(){
+  const d = day(cur), dt = toD(cur);
+  document.getElementById("dname").textContent = (cur === todayS ? "Сьогодні, " : "") + DAYS[dt.getUTCDay()].toLowerCase();
+  document.getElementById("ddate").textContent = fmt(cur);
+  document.getElementById("prev").disabled = cur <= START;
+  document.getElementById("next").disabled = cur >= END;
+  renderChipsOnly();
   document.querySelectorAll("[data-seg]").forEach(box => {
     const key = box.dataset.seg; box.innerHTML = "";
     SEGS[key].forEach(([v,label]) => {
@@ -478,6 +518,23 @@ function renderDay(){
   });
   const note = document.getElementById("note");
   if(document.activeElement !== note) note.value = d.note || "";
+  const mbox = document.getElementById("meals");
+  if(!mbox.contains(document.activeElement)){
+    mbox.innerHTML = "";
+    GROUPS.food.forEach(([k,label]) => {
+      const w = document.createElement("div"); w.className = "meal";
+      w.innerHTML = '<label>' + label + '</label>';
+      const inp = document.createElement("input");
+      inp.placeholder = k === "breakfast" ? "наприклад, вівсянка з яблуком і чай" : "";
+      inp.value = (d.eat && d.eat[k]) || "";
+      inp.oninput = () => {
+        const dd = day(cur); dd.eat = dd.eat || {}; dd.eat[k] = inp.value;
+        // вписана страва автоматично відмічає прийом їжі
+        if(inp.value.trim() && !dd[k]){ dd[k] = true; persist(); renderChipsOnly(); } else persist();
+      };
+      w.appendChild(inp); mbox.appendChild(w);
+    });
+  }
   const t = document.getElementById("task");
   t.className = "task" + (d.task ? " on" : "");
   t.innerHTML = '<div class="box">' + (d.task ? "✓" : "") + '</div><div>' + taskFor(cur) + '</div><span class="pts">+' + TASK_PTS + '</span>';
@@ -523,7 +580,58 @@ function statsHTML(s){
 }
 function weekStart(s){ const d = toD(s); const wd = (d.getUTCDay()+6)%7; return addDays(s,-wd); }
 
+let spinning = false;
+function drawWheel(){
+  const svg = document.getElementById("wheel"), n = PRIZES.length, a = 360/n;
+  const cols = ["#f3d9c9","#e3f1e6","#e4ecf6","#fbe9df","#f2e3b8","#e9dff3","#d9eee9","#f6dcdc"];
+  let h = "";
+  PRIZES.forEach(([e], i) => {
+    const s0 = (i*a - 90) * Math.PI/180, s1 = ((i+1)*a - 90) * Math.PI/180;
+    h += '<path d="M0 0 L' + (95*Math.cos(s0)).toFixed(2) + ' ' + (95*Math.sin(s0)).toFixed(2) + ' A95 95 0 0 1 ' + (95*Math.cos(s1)).toFixed(2) + ' ' + (95*Math.sin(s1)).toFixed(2) + ' Z" fill="' + cols[i%cols.length] + '" stroke="#fff" stroke-width="1.5"/>';
+    const m = ((i+.5)*a - 90) * Math.PI/180;
+    h += '<text x="' + (64*Math.cos(m)).toFixed(1) + '" y="' + (64*Math.sin(m)).toFixed(1) + '" font-size="22" text-anchor="middle" dominant-baseline="central">' + e + '</text>';
+  });
+  h += '<circle r="14" fill="var(--accent)"/>';
+  svg.innerHTML = h;
+}
+// Крутити можна за поточний тиждень або за минулий, якщо ціль виконана, а приз ще не отримано
+function spinnableWeek(){
+  const now = weekStart(clamp(todayS));
+  for(const ws of [addDays(now,-7), now]){
+    if(ws < weekStart(START)) continue;
+    const w = state.weeks && state.weeks[ws];
+    if(weekPts(ws) >= WEEK_GOAL && !(w && w.prize != null)) return ws;
+  }
+  return null;
+}
+function renderWheel(){
+  if(!document.getElementById("wheel").innerHTML) drawWheel();
+  const now = weekStart(clamp(todayS)), wp = weekPts(now), ws = spinnableWeek();
+  const got = state.weeks && state.weeks[now] && state.weeks[now].prize != null ? PRIZES[state.weeks[now].prize] : null;
+  document.getElementById("goalinfo").innerHTML = '<div class="bar"><i style="background:var(--accent);width:' + Math.min(100,Math.round(wp/WEEK_GOAL*100)) + '%"></i></div><small class="muted">Цього тижня ' + wp + ' з ' + WEEK_GOAL + ' балів. Набери ціль і крути колесо. Не вийшло? Нічого страшного, у понеділок новий тиждень.</small>';
+  const btn = document.getElementById("spin");
+  btn.disabled = !ws || spinning;
+  btn.textContent = ws ? (ws === now ? "Крутити колесо" : "Крутити за минулий тиждень") : (got ? "Приз цього тижня вже отримано" : "Колесо відкриється, коли набереш " + WEEK_GOAL);
+  if(!spinning) document.getElementById("prize").innerHTML = got ? "Твій приз цього тижня:<br><b>" + got[0] + " " + got[1] + "</b>" : "";
+}
+document.getElementById("spin").onclick = () => {
+  const ws = spinnableWeek(); if(!ws || spinning) return;
+  spinning = true;
+  const n = PRIZES.length, a = 360/n, i = Math.floor(Math.random()*n);
+  const svg = document.getElementById("wheel");
+  svg.style.transition = "none"; svg.style.transform = "rotate(0deg)"; svg.getBoundingClientRect();
+  svg.style.transition = ""; svg.style.transform = "rotate(" + (360*6 + (360 - (i+.5)*a)) + "deg)";
+  document.getElementById("prize").textContent = "Крутиться...";
+  document.getElementById("spin").disabled = true;
+  setTimeout(() => {
+    state.weeks = state.weeks || {}; state.weeks[ws] = {prize: i}; persist();
+    spinning = false; renderWheel();
+    document.getElementById("prize").innerHTML = "🎉 Твій приз:<br><b>" + PRIZES[i][0] + " " + PRIZES[i][1] + "</b>";
+  }, 4700);
+};
+
 function renderWeeks(){
+  renderWheel();
   const ws = weekStart(clamp(todayS));
   const cw = []; for(let i=0;i<7;i++) cw.push(addDays(ws,i));
   document.getElementById("wstats").innerHTML = statsHTML(summarize(cw));
@@ -537,7 +645,7 @@ function renderWeeks(){
       const lv = outR ? 0 : dayScore(state.days[x]);
       return '<div class="dot '+(outR?"out":"l"+lv)+'">'+toD(x).getUTCDate()+'</div>';
     }).join("");
-    out.push('<div class="week"><div class="t"><b>Тиждень '+n+'</b><span>'+fmt(dates[0])+' - '+fmt(dates[6])+'</span></div><div class="dots">'+dots+'</div><div class="wl">⭐ '+s.pts+' балів · регулярна їжа: '+s.regular+' · прогулянки: '+s.walks+' · вправи: '+s.workouts+'</div></div>');
+    out.push('<div class="week"><div class="t"><b>Тиждень '+n+'</b><span>'+fmt(dates[0])+' - '+fmt(dates[6])+'</span></div><div class="dots">'+dots+'</div><div class="wl">'+(state.weeks&&state.weeks[w]&&state.weeks[w].prize!=null?PRIZES[state.weeks[w].prize][0]+' ':'')+'⭐ '+s.pts+' з '+WEEK_GOAL+' балів · регулярна їжа: '+s.regular+' · прогулянки: '+s.walks+' · вправи: '+s.workouts+'</div></div>');
     w = addDays(w,7); n++;
   }
   document.getElementById("weeks").innerHTML = out.reverse().join("");
@@ -611,7 +719,7 @@ document.getElementById("importfile").onchange = async e => {
   try{
     const data = JSON.parse(await f.text());
     if(!data || typeof data.days !== "object") throw 0;
-    state = { days: data.days || {}, months: data.months || {} };
+    state = { days: data.days || {}, months: data.months || {}, weeks: data.weeks || {} };
     lsSave(); rerender(); flash("Копію відновлено ✓");
   }catch(err){ flash("Це не схоже на копію трекера"); }
   e.target.value = "";
