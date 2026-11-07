@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Мій трекер">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#fbf8f4">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Мій трекер звичок до весни</title>
+<style>
+  :root{
+    --bg:#fbf8f4; --card:#ffffff; --ink:#2b2a28; --muted:#7a746c; --line:#ebe4da;
+    --accent:#d9774b; --accent-soft:#fbe9df; --green:#5c9a6b; --green-soft:#e3f1e6;
+    --blue:#5a7fb0; --blue-soft:#e4ecf6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#1d1b19; --card:#272522; --ink:#f1ece6; --muted:#a59e95; --line:#38342f;
+      --accent:#e98a5f; --accent-soft:#3c2b22; --green:#7bbb8a; --green-soft:#24352a;
+      --blue:#86a6d6; --blue-soft:#232f3f; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 14px calc(90px + env(safe-area-inset-bottom))}
+  h1{font-size:22px;margin:4px 0 2px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 14px}
+  nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:5}
+  nav button{flex:1;background:none;border:0;color:var(--muted);font-size:12px;padding:6px 2px;border-radius:10px;cursor:pointer}
+  nav button span{display:block;font-size:20px;line-height:1.1}
+  nav button.on{color:var(--accent);background:var(--accent-soft)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:0 0 12px}
+  .card h2{font-size:17px;margin:0 0 10px}
+  .card h3{font-size:15px;margin:12px 0 6px}
+  .daybar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .daybar button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;width:44px;height:40px;font-size:18px;cursor:pointer}
+  .daybar .d{text-align:center}
+  .daybar .d b{display:block;font-size:17px}
+  .daybar .d small{color:var(--muted)}
+  .chips{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .chip{display:flex;align-items:center;gap:8px;border:1.5px solid var(--line);border-radius:12px;padding:10px;cursor:pointer;user-select:none;background:var(--card)}
+  .chip .box{width:22px;height:22px;border-radius:7px;border:2px solid var(--line);display:grid;place-items:center;font-size:14px;color:#fff;flex:none}
+  .chip.on{border-color:var(--green);background:var(--green-soft)}
+  .chip.on .box{background:var(--green);border-color:var(--green)}
+  .seg{display:flex;gap:6px}
+  .seg button{flex:1;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:9px 4px;font-size:14px;cursor:pointer}
+  .seg button.on{border-color:var(--blue);background:var(--blue-soft)}
+  textarea{width:100%;min-height:60px;border:1.5px solid var(--line);border-radius:12px;padding:10px;font:inherit;background:var(--card);color:var(--ink);resize:vertical}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .stat{border-radius:12px;padding:10px;background:var(--accent-soft)}
+  .stat b{font-size:22px;display:block}
+  .stat small{color:var(--muted);font-size:13px}
+  .week{border-top:1px solid var(--line);padding:10px 0}
+  .week:first-of-type{border-top:0}
+  .week .t{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
+  .week .t span{color:var(--muted)}
+  .dots{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .dot{height:30px;border-radius:8px;background:var(--line);display:grid;place-items:center;font-size:11px;color:var(--muted)}
+  .dot.l1{background:#f3d9c9;color:#7a4b33}.dot.l2{background:#e8b495;color:#5a3320}.dot.l3{background:var(--green);color:#fff}
+  .dot.out{opacity:.25}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:4px;vertical-align:-2px;margin-right:4px}
+  .wl{font-size:13px;color:var(--muted);margin-top:6px}
+  ul{padding-left:20px;margin:6px 0}
+  li{margin:4px 0}
+  .ex{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+  .ex:first-of-type{border-top:0;margin-top:0;padding-top:0}
+  .ex b{font-size:15px}
+  .easy{font-size:14px;background:var(--blue-soft);border-radius:10px;padding:6px 10px;margin-top:6px}
+  .stop{background:var(--accent-soft);border-radius:12px;padding:10px 12px}
+  .plate{display:flex;gap:12px;align-items:center}
+  .plate svg{flex:none}
+  .muted{color:var(--muted);font-size:14px}
+  .save{font-size:12px;color:var(--muted);text-align:right;min-height:16px;margin-top:-6px;margin-bottom:8px}
+  .mrow{margin:10px 0}
+  .mrow label{display:block;font-size:14px;margin-bottom:5px}
+  .help{font-size:14px}
+  .hidden{display:none}
+  .btn{display:block;width:100%;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:11px;font-size:15px;margin-top:8px;cursor:pointer}
+  .btn.main{background:var(--accent);border-color:var(--accent);color:#fff}
+  .install{background:var(--blue-soft)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Мій трекер звичок до весни</h1>
+  <p class="sub">Відмічай, що вдалося за день. Сторінка сама порахує тижні й місяці.</p>
+  <div class="save" id="save"></div>
+
+  <div class="card install hidden" id="install">
+    <h2>📲 Додай трекер на головний екран</h2>
+    Натисни кнопку «Поділитися» внизу Safari (квадрат зі стрілкою вгору), потім «На початковий екран» і «Додати». Після цього трекер відкриватиметься як звичайний застосунок і працюватиме без інтернету.
+    <button class="btn" id="hideinstall">Зрозуміло</button>
+  </div>
+
+  <!-- ДЕНЬ -->
+  <section id="v-day">
+    <div class="card">
+      <div class="daybar">
+        <button id="prev" aria-label="Попередній день">‹</button>
+        <div class="d"><b id="dname"></b><small id="ddate"></small></div>
+        <button id="next" aria-label="Наступний день">›</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>🍽 Їжа</h2>
+      <div class="chips" data-group="food"></div>
+    </div>
+    <div class="card">
+      <h2>🚶 Рух</h2>
+      <div class="chips" data-group="move"></div>
+    </div>
+    <div class="card">
+      <h2>😴 Як спала</h2>
+      <div class="seg" data-seg="sleep"></div>
+      <h3>⚡ Енергія за день</h3>
+      <div class="seg" data-seg="energy"></div>
+      <h3>🙂 Настрій щодо їжі</h3>
+      <div class="seg" data-seg="foodmood"></div>
+    </div>
+    <div class="card">
+      <h2>📝 Нотатка</h2>
+      <div class="chips" data-group="other"></div>
+      <div style="height:8px"></div>
+      <textarea id="note" placeholder="Що було добре сьогодні? Що заважало?"></textarea>
+    </div>
+  </section>
+
+  <!-- ТИЖНІ -->
+  <section id="v-weeks" class="hidden">
+    <div class="card">
+      <h2>Цей тиждень</h2>
+      <div class="stats" id="wstats"></div>
+    </div>
+    <div class="card">
+      <h2>Усі тижні</h2>
+      <div id="weeks"></div>
+      <div class="legend">
+        <span><i style="background:var(--line)"></i>нічого не відмічено</span>
+        <span><i style="background:#f3d9c9"></i>трохи</span>
+        <span><i style="background:#e8b495"></i>добре</span>
+        <span><i style="background:var(--green)"></i>чудовий день</span>
+      </div>
+      <p class="muted">Колір дня залежить від того, скільки разів ти поїла і чи був рух. Пропущені дні нормальні, головне повертатися.</p>
+    </div>
+  </section>
+
+  <!-- МІСЯЦЬ -->
+  <section id="v-month" class="hidden">
+    <div class="card">
+      <h2>Перевірка раз на місяць</h2>
+      <p class="muted">Замість зважувань і замірів: як змінилися сили, сон і настрій. Саме за цим видно, що звички працюють.</p>
+      <div class="seg" id="mpick"></div>
+    </div>
+    <div class="card">
+      <h2 id="mtitle"></h2>
+      <div class="stats" id="mstats"></div>
+    </div>
+    <div class="card" id="mform"></div>
+    <div class="card">
+      <h2>💾 Резервна копія</h2>
+      <p class="muted">Усі відмітки зберігаються на цьому телефоні. Раз на кілька тижнів зберігай копію у «Файли», щоб нічого не загубилося, якщо почистити Safari або змінити телефон.</p>
+      <button class="btn main" id="export">Зберегти копію</button>
+      <button class="btn" id="importbtn">Відновити з копії</button>
+      <input type="file" id="importfile" accept=".json,application/json" class="hidden">
+    </div>
+  </section>
+
+  <!-- ВПРАВИ -->
+  <section id="v-ex" class="hidden">
+    <div class="card">
+      <h2>Як тренуватися</h2>
+      <ul>
+        <li>Обирай кілька днів на тиждень, а між ними залишай день відпочинку. У дні відпочинку можна просто гуляти.</li>
+        <li>Займайся тільки після їжі, не натщесерце.</li>
+        <li>Роби повільно і закінчуй, поки ще могла б зробити кілька повторень. Втома має бути приємною.</li>
+        <li>Коли вправа стає легкою, спершу покращ техніку, а потім додай трохи більше повторень.</li>
+        <li>Штангу і блини поки відклади: повернешся до них, коли харчуватимешся регулярно і поруч буде людина, яка покаже техніку.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Розминка, кілька хвилин</h2>
+      <ul>
+        <li>Походи по кімнаті, потім на місці, піднімаючи коліна.</li>
+        <li>Кругові рухи плечима вперед і назад.</li>
+        <li>Кругові рухи тазом.</li>
+        <li>Обережно покрути ступнями, особливо ногою, де тягнула зв'язку.</li>
+        <li>Кілька легких нахилів убік.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Вправи</h2>
+      <div class="ex"><b>Присідання до стільця</b><br>
+        Стань перед стільцем, ноги на ширині плечей. Відводь таз назад, ніби сідаєш, торкнися сидіння і вставай. Коліна дивляться туди ж, що й пальці ніг, п'яти не відриваються від підлоги.
+        <div class="easy">Легше: повністю сідай на стілець і вставай, допомагаючи собі руками.</div></div>
+      <div class="ex"><b>Віджимання від стіни або столу</b><br>
+        Руки на опорі трохи ширше плечей. Тіло рівне від голови до п'ят. Повільно наближай груди до опори і відштовхуйся.
+        <div class="easy">Легше: стань ближче до стіни. Важче: обери нижчу опору, наприклад стіл.</div></div>
+      <div class="ex"><b>Сідничний місток</b><br>
+        Ляж на спину, ноги зігнуті, ступні на підлозі. Стисни сідниці і підніми таз, щоб тіло від колін до плечей було рівним. Повільно опусти.
+        <div class="easy">Легше: піднімай таз невисоко.</div></div>
+      <div class="ex"><b>Планка на колінах</b><br>
+        Лікті під плечима, коліна на підлозі. Спина рівна, живіт трохи підтягнутий, дихай спокійно. Тримай, поки техніка правильна.
+        <div class="easy">Легше: впрись руками у стіл або підвіконня.</div></div>
+      <div class="ex"><b>Пташка-собака</b><br>
+        Стань на четвереньки. Повільно витягни вперед одну руку, а назад протилежну ногу, затримайся і повернися. Потім в інший бік.
+        <div class="easy">Легше: піднімай тільки руку або тільки ногу.</div></div>
+      <div class="ex"><b>Підйоми на носки</b><br>
+        Тримаючись за стіл, повільно піднімись на носки і так само повільно опустись. Корисно для ноги після травми зв'язки.
+        <div class="easy">Якщо в місці старої травми з'являється біль, пропусти цю вправу.</div></div>
+      <p class="muted">Наприкінці трохи розтягнися: обережно потягнись до пальців ніг, розтягни стегна і плечі. Без різких рухів і без болю.</p>
+    </div>
+    <div class="card">
+      <h2>Прогулянки</h2>
+      <p>Почни з коротких прогулянок у приємному темпі. Коли стане легко, гуляй трохи довше або частіше. Тобі не треба щодня проходити якусь певну кількість кроків. Взимку одягайся тепло і зручно взувайся. Темніє рано, тому краще гуляти вдень.</p>
+    </div>
+    <div class="card stop">
+      <h2>⛔ Одразу зупиняйся, якщо</h2>
+      <ul>
+        <li>болить суглоб або місце старої травми;</li>
+        <li>паморочиться в голові або темніє в очах;</li>
+        <li>болить чи тисне в грудях;</li>
+        <li>задихаєшся так, що не можеш говорити;</li>
+        <li>дуже слабко або трясуться руки.</li>
+      </ul>
+      Сядь, попий води, з'їж щось. Якщо таке повторюється, скажи дорослим і сходи до лікаря.
+    </div>
+  </section>
+
+  <!-- ЇЖА -->
+  <section id="v-food" class="hidden">
+    <div class="card">
+      <h2>Як зібрати тарілку</h2>
+      <div class="plate">
+        <svg width="110" height="110" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="48" fill="var(--card)" stroke="var(--line)" stroke-width="2"/>
+          <path d="M50 50 L50 4 A46 46 0 0 1 50 96 Z" fill="#9fd1a8"/>
+          <path d="M50 50 L50 96 A46 46 0 0 1 4 50 Z" fill="#f0b48e"/>
+          <path d="M50 50 L4 50 A46 46 0 0 1 50 4 Z" fill="#f2d68a"/>
+        </svg>
+        <div>
+          <div>🥗 <b>Приблизно половина:</b> овочі або фрукти</div>
+          <div>🍗 <b>Частина:</b> щось білкове</div>
+          <div>🍞 <b>Частина:</b> щось ситне</div>
+        </div>
+      </div>
+      <h3>Що до чого належить</h3>
+      <ul>
+        <li><b>Ситне:</b> гречка, рис, пшоно, вівсянка, перловка, картопля, макарони, хліб.</li>
+        <li><b>Білкове:</b> м'ясо, курка, печінка, яйця, сир, кефір, молоко, квасоля, горох, риба.</li>
+        <li><b>Овочі й фрукти:</b> капуста, квашена капуста, буряк, морква, цибуля, огірки, гарбуз, яблука, груші.</li>
+        <li><b>Трохи жирів:</b> олія в салаті, вершкове масло, сметана, насіння.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Ідеї на кожен день</h2>
+      <h3>Сніданок</h3>
+      <ul><li>Вівсянка на молоці з тертим яблуком</li><li>Яйця з хлібом і огірком</li><li>Сирники зі сметаною</li><li>Пшоняна каша з гарбузом</li></ul>
+      <h3>Обід</h3>
+      <ul><li>Борщ або суп із хлібом</li><li>Гречка з м'ясом і квашеною капустою</li><li>Картопля з куркою і салатом</li></ul>
+      <h3>Вечеря</h3>
+      <ul><li>Омлет з овочами і хлібом</li><li>Макарони з сиром і салатом</li><li>Рис з тушкованими овочами і м'ясом</li></ul>
+      <h3>Перекус</h3>
+      <ul><li>Кефір або йогурт</li><li>Бутерброд із сиром</li><li>Яблуко з жменькою насіння</li><li>Банан, сир, печиво з чаєм</li></ul>
+      <p class="muted">Улюблена їжа, піца і солодке теж можна. Просто разом зі звичайною їжею, а не замість неї.</p>
+    </div>
+    <div class="card">
+      <h2>Прості правила</h2>
+      <ul>
+        <li>Їж три рази на день і роби перекус. Не пропускай прийоми їжі, навіть коли не дуже хочеться.</li>
+        <li>Їж разом з усіма, коли сім'я сідає за стіл.</li>
+        <li>Пий воду протягом дня.</li>
+        <li>Кухонні ваги й підрахунок поки не потрібні.</li>
+        <li>Якщо з'їла більше, ніж планувала, це нормально. Наступний прийом їжі просто їж як завжди, нічого не пропускаючи і нічого не відпрацьовуючи.</li>
+      </ul>
+    </div>
+    <div class="card help">
+      <h2>💬 Коли варто поговорити з кимось</h2>
+      Якщо знову хочеться не їсти по кілька днів, з'являється тривога через їжу чи вагу або погано почуваєшся, розкажи дорослому, якому довіряєш, і сходи до лікаря. Також можна безкоштовно подзвонити на Національну дитячу гарячу лінію: <b>116 111</b>.
+    </div>
+  </section>
+</div>
+
+<nav>
+  <button data-v="day" class="on"><span>✅</span>День</button>
+  <button data-v="weeks"><span>📊</span>Тижні</button>
+  <button data-v="month"><span>🗓</span>Місяць</button>
+  <button data-v="ex"><span>🤸</span>Вправи</button>
+  <button data-v="food"><span>🥣</span>Їжа</button>
+</nav>
+
+<script>
+// Дати рахуємо в UTC-полудні, щоб перехід на зимовий час не зсунув день
+const START = "2026-11-07", END = "2027-02-28";
+const DAYS = ["Неділя","Понеділок","Вівторок","Середа","Четвер","П'ятниця","Субота"];
+const MONTHS = ["січня","лютого","березня","квітня","травня","червня","липня","серпня","вересня","жовтня","листопада","грудня"];
+const toD = s => new Date(s + "T12:00:00Z");
+const toS = d => d.toISOString().slice(0,10);
+const addDays = (s,n) => { const d = toD(s); d.setUTCDate(d.getUTCDate()+n); return toS(d); };
+const todayS = (() => { const n = new Date(); return toS(new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate(), 12))); })();
+const clamp = s => s < START ? START : s > END ? END : s;
+
+const GROUPS = {
+  food: [["breakfast","Сніданок"],["lunch","Обід"],["dinner","Вечеря"],["snack","Перекус"]],
+  move: [["walk","Прогулянка"],["workout","Вправи вдома"],["stretch","Розтяжка"],["rest","День відпочинку"]],
+  other:[["water","Пила воду"],["period","Місячні"]]
+};
+const SEGS = {
+  sleep:   [["bad","Погано"],["mid","Так собі"],["good","Добре"]],
+  energy:  [["low","Мало сил"],["mid","Нормально"],["high","Багато сил"]],
+  foodmood:[["anx","Тривожно"],["mid","По-різному"],["calm","Спокійно"]]
+};
+const MQ = [
+  ["energy","Сил протягом дня зараз", [["less","менше"],["same","так само"],["more","більше"]]],
+  ["sleep","Сон порівняно з минулим місяцем", [["worse","гірше"],["same","так само"],["better","краще"]]],
+  ["strength","Вправи даються", [["harder","важче"],["same","так само"],["easier","легше"]]],
+  ["walks","Гуляти стало", [["harder","важче"],["same","так само"],["easier","легше"]]],
+  ["food","Стосунки з їжею", [["anx","тривожно"],["mid","по-різному"],["calm","спокійно"]]],
+  ["talked","Поговорила з лікарем чи дорослим про своє самопочуття", [["no","ще ні"],["plan","збираюся"],["yes","так"]]]
+];
+const MLIST = [["2026-11","Листопад"],["2026-12","Грудень"],["2027-01","Січень"],["2027-02","Лютий"]];
+
+let state = { days:{}, months:{} };
+let cur = clamp(todayS);
+let curMonth = (MLIST.find(m => todayS.startsWith(m[0])) || MLIST[0])[0];
+let saver = null, docRef = null;
+
+// Основне сховище: особистий розділ у db (бачить лише сама людина); localStorage тільки як запасний варіант
+function lsLoad(){ try{ const s = localStorage.getItem("habit-tracker"); if(s) state = Object.assign({days:{},months:{}}, JSON.parse(s)); }catch(e){} }
+function lsSave(){ try{ localStorage.setItem("habit-tracker", JSON.stringify(state)); }catch(e){} }
+let pending = null, writing = false;
+function persist(){
+  lsSave();
+  if(!docRef){ flash("Збережено ✓"); return; }
+  clearTimeout(pending);
+  // Збираємо швидкі натискання в один запис, бо писати в документ можна лише по одному разу
+  pending = setTimeout(async () => {
+    if(writing){ persist(); return; }
+    writing = true;
+    try{ await docRef.set(JSON.parse(JSON.stringify(state))); flash("Збережено ✓"); }
+    // Гість за посиланням не може писати в онлайн-сховище: далі тихо зберігаємо лише на пристрої
+    catch(e){ docRef = null; flash("Збережено на цьому пристрої"); }
+    writing = false;
+  }, 800);
+}
+function flash(t){ const el = document.getElementById("save"); el.textContent = t; clearTimeout(saver); saver = setTimeout(()=>el.textContent="", 2500); }
+
+const day = s => state.days[s] || (state.days[s] = {});
+function dayScore(d){
+  if(!d) return 0;
+  const meals = ["breakfast","lunch","dinner","snack"].filter(k=>d[k]).length;
+  const moved = d.walk || d.workout || d.stretch || d.rest;
+  const pts = meals + (moved ? 1 : 0);
+  if(pts === 0) return 0;
+  if(pts >= 4 && meals >= 3) return 3;
+  if(pts >= 3) return 2;
+  return 1;
+}
+const fmt = s => { const d = toD(s); return d.getUTCDate() + " " + MONTHS[d.getUTCMonth()]; };
+
+function renderDay(){
+  const d = day(cur), dt = toD(cur);
+  document.getElementById("dname").textContent = (cur === todayS ? "Сьогодні, " : "") + DAYS[dt.getUTCDay()].toLowerCase();
+  document.getElementById("ddate").textContent = fmt(cur);
+  document.getElementById("prev").disabled = cur <= START;
+  document.getElementById("next").disabled = cur >= END;
+  document.querySelectorAll("[data-group]").forEach(box => {
+    box.innerHTML = "";
+    GROUPS[box.dataset.group].forEach(([k,label]) => {
+      const c = document.createElement("div");
+      c.className = "chip" + (d[k] ? " on" : "");
+      c.innerHTML = '<div class="box">' + (d[k] ? "✓" : "") + '</div><div>' + label + '</div>';
+      c.onclick = () => { const dd = day(cur); dd[k] = !dd[k]; persist(); renderDay(); };
+      box.appendChild(c);
+    });
+  });
+  document.querySelectorAll("[data-seg]").forEach(box => {
+    const key = box.dataset.seg; box.innerHTML = "";
+    SEGS[key].forEach(([v,label]) => {
+      const b = document.createElement("button");
+      b.textContent = label; if(d[key] === v) b.className = "on";
+      b.onclick = () => { const dd = day(cur); dd[key] = dd[key] === v ? null : v; persist(); renderDay(); };
+      box.appendChild(b);
+    });
+  });
+  const note = document.getElementById("note");
+  if(document.activeElement !== note) note.value = d.note || "";
+}
+
+function summarize(dates){
+  let regular=0, walks=0, workouts=0, goodSleep=0, energy=0, calm=0, marked=0;
+  dates.forEach(s => {
+    const d = state.days[s]; if(!d) return;
+    const meals = ["breakfast","lunch","dinner","snack"].filter(k=>d[k]).length;
+    if(meals || d.walk || d.workout) marked++;
+    if(d.breakfast && d.lunch && d.dinner) regular++;
+    if(d.walk) walks++;
+    if(d.workout) workouts++;
+    if(d.sleep === "good") goodSleep++;
+    if(d.energy === "high" || d.energy === "mid") energy++;
+    if(d.foodmood === "calm") calm++;
+  });
+  return {regular, walks, workouts, goodSleep, energy, calm, marked};
+}
+function statsHTML(s){
+  return [
+    [s.regular,"днів з усіма трьома прийомами їжі"],
+    [s.walks,"прогулянок"],
+    [s.workouts,"тренувань удома"],
+    [s.goodSleep,"ночей з добрим сном"],
+    [s.energy,"днів, коли вистачало сил"],
+    [s.calm,"днів зі спокоєм щодо їжі"]
+  ].map(([n,t]) => '<div class="stat"><b>'+n+'</b><small>'+t+'</small></div>').join("");
+}
+function weekStart(s){ const d = toD(s); const wd = (d.getUTCDay()+6)%7; return addDays(s,-wd); }
+
+function renderWeeks(){
+  const ws = weekStart(clamp(todayS));
+  const cw = []; for(let i=0;i<7;i++) cw.push(addDays(ws,i));
+  document.getElementById("wstats").innerHTML = statsHTML(summarize(cw));
+  const out = [];
+  let w = weekStart(START), n = 1;
+  while(w <= END){
+    const dates = []; for(let i=0;i<7;i++) dates.push(addDays(w,i));
+    const s = summarize(dates.filter(x => x>=START && x<=END));
+    const dots = dates.map(x => {
+      const outR = x < START || x > END;
+      const lv = outR ? 0 : dayScore(state.days[x]);
+      return '<div class="dot '+(outR?"out":"l"+lv)+'">'+toD(x).getUTCDate()+'</div>';
+    }).join("");
+    out.push('<div class="week"><div class="t"><b>Тиждень '+n+'</b><span>'+fmt(dates[0])+' - '+fmt(dates[6])+'</span></div><div class="dots">'+dots+'</div><div class="wl">Регулярна їжа: '+s.regular+' · прогулянки: '+s.walks+' · вправи: '+s.workouts+'</div></div>');
+    w = addDays(w,7); n++;
+  }
+  document.getElementById("weeks").innerHTML = out.reverse().join("");
+}
+
+function renderMonth(){
+  const pick = document.getElementById("mpick"); pick.innerHTML = "";
+  MLIST.forEach(([k,label]) => {
+    const b = document.createElement("button"); b.textContent = label;
+    if(k === curMonth) b.className = "on";
+    b.onclick = () => { curMonth = k; renderMonth(); };
+    pick.appendChild(b);
+  });
+  const label = MLIST.find(m=>m[0]===curMonth)[1];
+  document.getElementById("mtitle").textContent = label + ": що вдалося";
+  const dates = Object.keys(state.days).filter(s => s.startsWith(curMonth));
+  document.getElementById("mstats").innerHTML = statsHTML(summarize(dates));
+  const m = state.months[curMonth] || (state.months[curMonth] = {});
+  const f = document.getElementById("mform");
+  f.innerHTML = '<h2>Як я почуваюся наприкінці місяця</h2>';
+  MQ.forEach(([k,q,opts]) => {
+    const row = document.createElement("div"); row.className = "mrow";
+    row.innerHTML = '<label>'+q+'</label>';
+    const seg = document.createElement("div"); seg.className = "seg";
+    opts.forEach(([v,t]) => {
+      const b = document.createElement("button"); b.textContent = t; if(m[k]===v) b.className="on";
+      b.onclick = () => { const mm = state.months[curMonth]; mm[k] = mm[k]===v ? null : v; persist(); renderMonth(); };
+      seg.appendChild(b);
+    });
+    row.appendChild(seg); f.appendChild(row);
+  });
+  const r = document.createElement("div"); r.className="mrow";
+  r.innerHTML = '<label>Чим пишаюся цього місяця, що хочу змінити</label>';
+  const ta = document.createElement("textarea"); ta.value = m.note || "";
+  ta.oninput = () => { state.months[curMonth].note = ta.value; persist(); };
+  r.appendChild(ta); f.appendChild(r);
+}
+
+function rerender(){
+  const v = (document.querySelector("nav button.on")||{}).dataset;
+  if(!v) return;
+  if(v.v==="day") renderDay(); if(v.v==="weeks") renderWeeks(); if(v.v==="month") renderMonth();
+}
+function show(v){
+  document.querySelectorAll("section").forEach(s => s.classList.toggle("hidden", s.id !== "v-"+v));
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  if(v==="day") renderDay(); if(v==="weeks") renderWeeks(); if(v==="month") renderMonth();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.v));
+document.getElementById("prev").onclick = () => { cur = clamp(addDays(cur,-1)); renderDay(); };
+document.getElementById("next").onclick = () => { cur = clamp(addDays(cur,1)); renderDay(); };
+document.getElementById("note").oninput = e => { day(cur).note = e.target.value; persist(); };
+
+lsLoad(); renderDay();
+
+// Резервна копія: на айфоні файл віддаємо через «Поділитися», бо в застосунку з головного екрана звичайне завантаження працює ненадійно
+document.getElementById("export").onclick = async () => {
+  const name = "трекер-копія-" + todayS + ".json";
+  const file = new File([JSON.stringify(state)], name, {type:"application/json"});
+  try{
+    if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; }
+  }catch(e){ if(e && e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+document.getElementById("importbtn").onclick = () => document.getElementById("importfile").click();
+document.getElementById("importfile").onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    if(!data || typeof data.days !== "object") throw 0;
+    state = { days: data.days || {}, months: data.months || {} };
+    lsSave(); rerender(); flash("Копію відновлено ✓");
+  }catch(err){ flash("Це не схоже на копію трекера"); }
+  e.target.value = "";
+};
+
+// Підказку про встановлення показуємо лише в Safari, коли трекер ще не на головному екрані
+(() => {
+  const standalone = window.navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+  let hidden = false; try{ hidden = localStorage.getItem("install-hint") === "no"; }catch(e){}
+  if(!standalone && !hidden && /iPhone|iPad/.test(navigator.userAgent)) document.getElementById("install").classList.remove("hidden");
+  document.getElementById("hideinstall").onclick = () => {
+    document.getElementById("install").classList.add("hidden");
+    try{ localStorage.setItem("install-hint","no"); }catch(e){}
+  };
+})();
+
+// Офлайн-робота: службовий скрипт кешує сторінку після першого відкриття
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+</script>
+</body>
+</html>
